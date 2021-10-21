@@ -332,7 +332,7 @@ module tb_fp_div();
 	 $display ("2019A7PS0134P Rahul B");
 	 $display ("2019A7PS0039P Asish Juttu");
 	 $display ("2019A7PS1111P Praneeth Chaitanya Jonnavithula");
-	 $display ("2019A7PS0138P Narasimha Guptha Jangala");
+	 $display ("2019A7PS0138P Jangala Narasimha Gupta");
 	 $display ("********************************************");
 	 end
 
