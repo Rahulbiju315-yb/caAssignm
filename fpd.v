@@ -280,6 +280,12 @@ module fpdiv(AbyB,DONE,EXCEPTION,InputA,InputB,CLOCK,RESET);
             EXCEPTION = 2'b11;
             DONE = 1;
         end
+        else if(isInfA && xByZero) begin
+            AbyB = 32'b01111111111111111111111111111111;
+            AbyB[31] = sign;
+            EXCEPTION = 2'b11;
+            DONE = 1;
+        end
         else if(isInfA) begin
             AbyB = 32'b01111111100000000000000000000000;
             AbyB[31] = sign;
@@ -415,7 +421,7 @@ module testbench1();
 
         #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
         $display("Case 6: Subnormal Numbers");
-        #6 InputA = 32'b00000000001111111111111111111111; InputB = 32'b01000000100000000000000000000000;  // Subnormal Number/4
+        #6 InputA = 32'b00000001011100011111111111111101; InputB = 32'b01000001110010000000000000000000;  // Subnormal Number/4
         #1 RESET = 0;
         #1 RESET = 1;
 
