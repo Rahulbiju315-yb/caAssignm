@@ -131,13 +131,19 @@ module normalizer(nMantissa, uExp, done, significand, nExp, underflow, overflow)
             underflow_reg = 0;
             
         end
-        else if($signed(uExp) == $signed(10'b1110000001)) begin // denormalised
-            significand_reg[21 : 0] = nMantissa[22 : 1];
-            significand_reg[22] = 1;
+        else if($signed(uExp) <= $signed(10'b1110000001)) begin // denormalised
+            significand_reg[22 : 0] = (nMantissa >> ($signed(10'b1110000001) - $signed(uExp) + 1));
+            $display("nMantissa = %23b, significand = %23b", nMantissa, significand_reg);
             nExp_reg = 8'b00000000;
 
-            overflow_reg = 0;
-            underflow_reg = 0;
+            if(significand_reg == 0) begin
+                overflow_reg = 0;
+                underflow_reg = 1;
+            end
+            else begin
+                overflow_reg = 0;
+                underflow_reg = 0;
+            end
         end
         else if($signed(uExp) >= $signed(10'b0010000000)) begin // overflow
             significand_reg = 0;
@@ -146,13 +152,7 @@ module normalizer(nMantissa, uExp, done, significand, nExp, underflow, overflow)
             overflow_reg = 1;
             underflow_reg = 0;
         end
-        else begin // underflow
-            significand_reg = 0;
-            nExp_reg = 0;
-
-            overflow_reg = 0;
-            underflow_reg = 1;
-        end
+        
     end
     assign significand = significand_reg;
     assign nExp = nExp_reg;
@@ -424,10 +424,10 @@ module testbench1();
         #6 InputA = 32'b00000001011100011111111111111101; InputB = 32'b01000001110010000000000000000000;  // Subnormal Number/4
         #1 RESET = 0;
         #1 RESET = 1;
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
 
 
-
-        #1000 $finish();
+        #2000 $finish();
     end
 endmodule
 
