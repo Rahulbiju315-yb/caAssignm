@@ -59,21 +59,13 @@ module mdiv(a, b, enable, clk, mantissa, exponent, done);
     end
     always @(posedge clk) begin
         if(enable && ~done) begin
-                //$display("Hello");
-            // while(ilen <= 23) begin
-
-                // if(24 - k < 0) 
-                //     $display(" Dot = %d", k);
                 accum = 2 * accum;
-                //$display("a = %24b, b = %24b, accum = %25b", a, b, accum);
 
                 if(accum >= b) begin
-                    // $display("Subtracted !!! new accum = %25b", accum);
                     accum = accum - b;
                     answer = 2 * answer + 1;
                     if(!started) begin
                         first = k;
-                        // $display("First %d", k);
                         started = 1;
                     end
                 end
@@ -87,14 +79,12 @@ module mdiv(a, b, enable, clk, mantissa, exponent, done);
                 end
 
                 k = k + 1;
-            // end
                 if(ilen > 23) begin
                     done = 1;
                     exponent = 1 - first;
                     lmno = 1 - first;
                 end
 
-        // $display(" EXP +  + ++ + + %d", lmno);
         end
     end
 endmodule
@@ -119,14 +109,8 @@ module normalizer(nMantissa, uExp, done, significand, nExp, underflow, overflow)
 
     always @(posedge done) begin 
         if($signed(uExp) > $signed(10'b1110000001) && $signed(uExp) < $signed(10'b0010000000)) begin // normal 
-           // assign significand = nMantissa[22 : 0]; 
-            //assign nExp = uExp + 127;
-
-            //assign overflow = 0;
-            //assign underflow = 0;
             significand_reg = nMantissa[22 : 0]; 
             nExp_reg = uExp + 9'b001111111;
-            // $display("A!! nExp = %8b, UEXP = %9b", nExp, uExp);
             overflow_reg = 0;
             underflow_reg = 0;
             
@@ -340,7 +324,29 @@ module fpdiv(AbyB,DONE,EXCEPTION,InputA,InputB,CLOCK,RESET);
 
 endmodule
 
-module testbench1();
+module tb_fp_div();
+
+     initial begin
+	 $display ("The Group Members are:");
+	 $display ("********************************************");
+	 $display ("2019A7PS0134P Rahul B");
+	 $display ("2019A7PS0039P Asish Juttu");
+	 $display ("2019A7PS1111P Praneeth Chaitanya Jonnavithula");
+	 $display ("2019A7PS0138P Narasimha Guptha Jangala");
+	 $display ("********************************************");
+	 end
+
+	 initial begin
+	 $display ("A few thigs about our design:");
+	 $display ("********************************************");
+	 $display ("It works on the Positive edge of the CLOCK signal");
+     $display ("Starts calculation of result on Positive Edge RESET signal");
+	 $display ("Will take 24 - 48 clock cycles to complete the execution");
+	 $display ("We haven't used the guard bits");
+     $display ("The method used to execute this task is similar to Restoring Division Algorithm");
+	 $display ("********************************************");
+	 end
+
     reg signed [31 : 0] InputA, InputB;
     reg CLOCK = 0;
     reg RESET;
@@ -366,6 +372,11 @@ module testbench1();
 
         #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
         InputA = 32'b01000000101000000000000000000000; InputB = 32'b01000000000000000000000000000000;  // 5/2
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        InputA = 32'b11000000101000000000000000000000; InputB = 32'b01000000000000000000000000000000;  // 5/2
         #1 RESET = 0;
         #1 RESET = 1;
 
@@ -429,26 +440,4 @@ module testbench1();
 
         #2000 $finish();
     end
-endmodule
-
-module tb_fp_div();
-	 initial begin
-	 $display ("The Group Members are:");
-	 $display ("********************************************");
-	 $display ("2019A7PS0134P Rahul B");
-	 $display ("2019A7PS0039P Asish Juttu");
-	 $display ("2019A7PS1111P Praneeth Chaitanya Jonnavithula");
-	 $display ("2019A7PS0138P Narasimha Guptha Jangala");
-	 $display ("********************************************");
-	 end
-
-	 initial begin
-	 $display ("A few thigs about our design:");
-	 $display ("********************************************");
-	 $display ("It works on the Positive edge of the CLOCK signal");
-     $display ("Starts calculation of result on Positive Edge RESET signal");
-	 $display ("Will take 24 - 48 clock cycles to complete the execution");
-	 $display ("We haven't used the guard bits");
-	 $display ("********************************************");
-	 end
 endmodule
