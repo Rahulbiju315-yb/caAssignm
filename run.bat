@@ -1,2 +1,2 @@
-iverilog expAdj.v expDiff.v normalizer.v fpd.v mdiv.v shifter.v toint.v
+iverilog fpd.v
 vvp a.out
