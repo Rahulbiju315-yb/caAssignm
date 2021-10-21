@@ -3,17 +3,17 @@ module expAdj(expC, expDiff, uExp);
     input [8 : 0] expC;
     input [8 : 0] expDiff;
      
-    output [8 : 0] uExp;
-    assign uExp = expC + expDiff;
+    output [9 : 0] uExp;
+    assign uExp = $signed(expC) + $signed(expDiff);
     
 endmodule
 
 module expDiff(expA, expB, eDiff);
 // calculates exponent difference for division
-    input [7 : 0] expA, expB;
+    input [8 : 0] expA, expB;
     output [8 : 0] eDiff; // expA - expB may exceed 8 bits (not overflow since exp from mdiv needs to be accounted)
 
-    assign eDiff = expA - expB;
+    assign {eDiff[8], eDiff[7 : 0]} = $signed(expA == 0 ? 1 : expA) - $signed(expB == 0 ? 1 : expB);
 endmodule
 
 module mdiv(a, b, enable, clk, mantissa, exponent, done); 
@@ -108,7 +108,7 @@ module normalizer(nMantissa, uExp, done, significand, nExp, underflow, overflow)
     //overflow - overflow has occured (nExp >= 128, i.e result is +- inf or NaN)
 
     input [23 : 0] nMantissa;
-    input [8 : 0] uExp;
+    input [9 : 0] uExp;
     input done;
     output [22 : 0] significand;
     output [7 : 0] nExp;
@@ -118,7 +118,7 @@ module normalizer(nMantissa, uExp, done, significand, nExp, underflow, overflow)
     reg [7 : 0] nExp_reg;
 
     always @(posedge done) begin 
-        if($signed(uExp) > $signed(9'b110000001) && $signed(uExp) < $signed(9'b010000000)) begin // normal 
+        if($signed(uExp) > $signed(10'b1110000001) && $signed(uExp) < $signed(10'b0010000000)) begin // normal 
            // assign significand = nMantissa[22 : 0]; 
             //assign nExp = uExp + 127;
 
@@ -126,12 +126,12 @@ module normalizer(nMantissa, uExp, done, significand, nExp, underflow, overflow)
             //assign underflow = 0;
             significand_reg = nMantissa[22 : 0]; 
             nExp_reg = uExp + 9'b001111111;
-            $display("A!! nExp = %8b, UEXP = %9b", nExp, uExp);
+            // $display("A!! nExp = %8b, UEXP = %9b", nExp, uExp);
             overflow_reg = 0;
             underflow_reg = 0;
             
         end
-        else if($signed(uExp) == $signed(9'b110000001)) begin // denormalised
+        else if($signed(uExp) == $signed(10'b1110000001)) begin // denormalised
             significand_reg[21 : 0] = nMantissa[22 : 1];
             significand_reg[22] = 1;
             nExp_reg = 8'b00000000;
@@ -139,7 +139,7 @@ module normalizer(nMantissa, uExp, done, significand, nExp, underflow, overflow)
             overflow_reg = 0;
             underflow_reg = 0;
         end
-        else if($signed(uExp) >= $signed(9'b010000000)) begin // overflow
+        else if($signed(uExp) >= $signed(10'b0010000000)) begin // overflow
             significand_reg = 0;
             nExp_reg = 8'b11111111;
 
@@ -196,14 +196,16 @@ module fpdiv(AbyB,DONE,EXCEPTION,InputA,InputB,CLOCK,RESET);
     wire[22 : 0] significandA;
     assign significandA = InputA[22 : 0];
 
-    wire[7 : 0] expA;
-    assign expA = InputA[30 : 23];
+    wire[8 : 0] expA;
+    assign expA[7 : 0] = InputA[30 : 23];
+    assign expA[8] = 0;
 
     wire[22 : 0] significandB;
     assign significandB = InputB[22 : 0];
 
-    wire[7 : 0] expB;
-    assign expB = InputB[30 : 23];
+    wire[8 : 0] expB;
+    assign expB[7 : 0] = InputB[30 : 23];
+    assign expB[8] = 0;
 
     // Calculates exp of A - exp of B
     wire[8 : 0] expDiff;
@@ -211,10 +213,10 @@ module fpdiv(AbyB,DONE,EXCEPTION,InputA,InputB,CLOCK,RESET);
     
     // Converts the mantissa to integral form for division [ 1.m1 / 1.m2 = 1m1 / 1m2 ] 
     wire[23 : 0] intA;
-    toint atoint(significandA, expA, intA);
+    toint atoint(significandA, expA[7 : 0], intA);
 
     wire[23 : 0] intB;
-    toint btoint(significandB, expB, intB);
+    toint btoint(significandB, expB[7 : 0], intB);
 
     // Calculates intA / intB in the form of intC, expC which represents a number 1.m3 * 2^(expC)
     reg enable = 0;
@@ -225,7 +227,7 @@ module fpdiv(AbyB,DONE,EXCEPTION,InputA,InputB,CLOCK,RESET);
     mdiv intDiv(intA, intB, enable, CLOCK, mantissa, exponent, divDone);
 
     // Adds expC to expDiff
-    wire[8 : 0] uExp;
+    wire[9 : 0] uExp;
     expAdj adjuster(exponent, expDiff, uExp);
     
     // Normailizes result if required and produces necessary signals (underflow / overflow)
@@ -267,25 +269,42 @@ module fpdiv(AbyB,DONE,EXCEPTION,InputA,InputB,CLOCK,RESET);
         //Special Cases ...
         // 0 / 0 => NaN
         // Inf / Inf => NaN
-        // X / 0 => +- Inf
+        // X / 0 => +- Inf (Invalid)
         // 0 / X => 0
         // NaN / X or X / NaN => NaN
+        // X / Inf => Invalid
+        // Inf / X => Invalid
         if(isNaN) begin
             AbyB = 32'b01111111111111111111111111111111;
+            AbyB[31] = sign;
+            EXCEPTION = 2'b11;
+            DONE = 1;
+        end
+        else if(isInfA) begin
+            AbyB = 32'b01111111100000000000000000000000;
+            AbyB[31] = sign;
+            EXCEPTION = 2'b11;
+            DONE = 1;
+        end
+        else if(isInfB) begin
+            AbyB = 32'b00000000000000000000000000000000;
+            AbyB[31] = sign;
             EXCEPTION = 2'b11;
             DONE = 1;
         end
         else if(xByZero) begin
             AbyB = 32'b01111111100000000000000000000000;
+            AbyB[31] = sign;
             EXCEPTION = 2'b00;
             DONE = 1;
         end
         else if(zeroByX) begin
             AbyB = 32'b00000000000000000000000000000000;
+            AbyB[31] = sign;
             DONE = 1;
         end
         else begin
-            DONE = 1;
+            DONE = 0;
             enable = 1;
         end
     end
@@ -297,13 +316,16 @@ module fpdiv(AbyB,DONE,EXCEPTION,InputA,InputB,CLOCK,RESET);
         AbyB[30 : 23] = nExp[7 : 0];
         AbyB[22 : 0] = ansSignificand[22 : 0];
         enable = 0;
-        $display("intA = %24b, intB = %24b,mantissa from mdiv = %23b, exp from mdiv = %0b, expDifference = %9b, uExp = %9b, nExp = %8b, AbyB = %32b", 
-        intA, intB, mantissa, exponent, expDiff, uExp, nExp, AbyB);
+        $display("intA = %24b, intB = %24b,mantissa from mdiv = %23b, exp from mdiv = %9b, expA = %9b, expB = %9b, expDifference = %9b, uExp = %9b, nExp = %8b, AbyB = %32b", 
+        intA, intB, mantissa, exponent, expA, expB, expDiff, uExp, nExp, AbyB);
         if(underflow) begin
             EXCEPTION = 2'b01;
         end
         else if(overflow) begin
             EXCEPTION = 2'b10;
+        end
+        else begin
+            EXCEPTION = 2'bxx;
         end
         DONE = 1;
     end
@@ -329,58 +351,70 @@ module testbench1();
     end
 
     initial begin
-        $monitor("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
 
         #6 $display("Case 1: Normal");
         #6 InputA = 32'b00111111101111000000000000000000; InputB = 32'b00111111101000000000000000000000; // 1.46875/1.25 
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 InputA = 32'b01000000101000000000000000000000; InputB = 32'b01000000000000000000000000000000;  // 5/2
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        InputA = 32'b01000000101000000000000000000000; InputB = 32'b01000000000000000000000000000000;  // 5/2
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 $display("Case 2: Divide by Zero");
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        $display("Case 2: Divide by Zero");
         #6 InputA = 32'b01000000101000000000000000000000; InputB = 32'b00000000000000000000000000000000;  // 5/0 = Infinity
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 $display("Case 3: Underflow");
+        #1000 
+        $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        $display("Case 3: Underflow");
         #6 InputA = 32'b00000000000110010101010000000000; InputB = 32'b01111111011111111111111111111111;  // Smallest Possible Number / Largest Possible Number = Underflow
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 $display("Case 4: Overflow");
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        $display("Case 4: Overflow");
         #6 InputA = 32'b01111111011111111111111111111111; InputB = 32'b00000000000110010101010000000000;  // Largest Possible Number / Smallest Possible Number = Overflow
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 $display("Case 5: Invalid Operands");
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        $display("Case 5: Invalid Operands");
         #6 InputA = 32'b01111111110000000000000000000000; InputB = 32'b01111111110000000000000000000000;  // NaN/NaN = NaN
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 InputA = 32'b01111111100000000000000000000000; InputB = 32'b01111111100000000000000000000000;  // Infinity/Infinity = NaN
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        InputA = 32'b01111111100000000000000000000000; InputB = 32'b01111111100000000000000000000000;  // Infinity/Infinity = NaN
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 InputA = 32'b01111111100000000000000000000000; InputB = 32'b00000000000000000000000000000000;  // Infinity/Zero = NaN
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        InputA = 32'b01111111100000000000000000000000; InputB = 32'b00000000000000000000000000000000;  // Infinity/Zero = NaN
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 InputA = 32'b01111111100000000000000000000000; InputB = 32'b00111111100000000000000000000000;  // Infinity/1 = Infinity
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        InputA = 32'b01111111100000000000000000000000; InputB = 32'b00111111100000000000000000000000;  // Infinity/1 = Infinity
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 InputA = 32'b00111111100000000000000000000000; InputB = 32'b01111111100000000000000000000000;  // 1/Infinity = Zero
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        InputA = 32'b00111111100000000000000000000000; InputB = 32'b01111111100000000000000000000000;  // 1/Infinity = Zero
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 InputA = 32'b00000000000000000000000000000000; InputB = 32'b00000000000000000000000000000000;  // Zero/Zero = NaN
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        InputA = 32'b00000000000000000000000000000000; InputB = 32'b00000000000000000000000000000000;  // Zero/Zero = NaN
         #1 RESET = 0;
         #1 RESET = 1;
 
-        #6 $display("Case 6: Subnormal Numbers");
+        #1000 $display("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
+        $display("Case 6: Subnormal Numbers");
         #6 InputA = 32'b00000000001111111111111111111111; InputB = 32'b01000000100000000000000000000000;  // Subnormal Number/4
         #1 RESET = 0;
         #1 RESET = 1;
@@ -406,7 +440,8 @@ module tb_fp_div();
 	 $display ("A few thigs about our design:");
 	 $display ("********************************************");
 	 $display ("It works on the Positive edge of the CLOCK signal");
-	 $display ("Will take around 25 CLOCK cycles to complete the execution");
+     $display ("Starts calculation of result on Positive Edge RESET signal");
+	 $display ("Will take 24 - 48 clock cycles to complete the execution");
 	 $display ("We haven't used the guard bits");
 	 $display ("********************************************");
 	 end
