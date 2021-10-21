@@ -331,10 +331,83 @@ module testbench1();
     initial begin
         $monitor("A = %32b, B = %32b, AbyB = %32b, exception = %2b", InputA, InputB, AbyB, EXCEPTION);
 
-        #6 InputA = 32'b00111111101111000000000000000000; InputB = 32'b00111111101000000000000000000000;
+        #6 $display("Case 1: Normal");
+        #6 InputA = 32'b00111111101111000000000000000000; InputB = 32'b00111111101000000000000000000000; // 1.46875/1.25 
         #1 RESET = 0;
         #1 RESET = 1;
 
+        #6 InputA = 32'b01000000101000000000000000000000; InputB = 32'b01000000000000000000000000000000;  // 5/2
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #6 $display("Case 2: Divide by Zero");
+        #6 InputA = 32'b01000000101000000000000000000000; InputB = 32'b00000000000000000000000000000000;  // 5/0 = Infinity
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #6 $display("Case 3: Underflow");
+        #6 InputA = 32'b00000000000110010101010000000000; InputB = 32'b01111111011111111111111111111111;  // Smallest Possible Number / Largest Possible Number = Underflow
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #6 $display("Case 4: Overflow");
+        #6 InputA = 32'b01111111011111111111111111111111; InputB = 32'b00000000000110010101010000000000;  // Largest Possible Number / Smallest Possible Number = Overflow
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #6 $display("Case 5: Invalid Operands");
+        #6 InputA = 32'b01111111110000000000000000000000; InputB = 32'b01111111110000000000000000000000;  // NaN/NaN = NaN
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #6 InputA = 32'b01111111100000000000000000000000; InputB = 32'b01111111100000000000000000000000;  // Infinity/Infinity = NaN
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #6 InputA = 32'b01111111100000000000000000000000; InputB = 32'b00000000000000000000000000000000;  // Infinity/Zero = NaN
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #6 InputA = 32'b01111111100000000000000000000000; InputB = 32'b00111111100000000000000000000000;  // Infinity/1 = Infinity
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #6 InputA = 32'b00111111100000000000000000000000; InputB = 32'b01111111100000000000000000000000;  // 1/Infinity = Zero
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #6 InputA = 32'b00000000000000000000000000000000; InputB = 32'b00000000000000000000000000000000;  // Zero/Zero = NaN
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+        #6 $display("Case 6: Subnormal Numbers");
+        #6 InputA = 32'b00000000001111111111111111111111; InputB = 32'b01000000100000000000000000000000;  // Subnormal Number/4
+        #1 RESET = 0;
+        #1 RESET = 1;
+
+
+
         #1000 $finish();
     end
+endmodule
+
+module tb_fp_div();
+	 initial begin
+	 $display ("The Group Members are:");
+	 $display ("********************************************");
+	 $display ("2019A7PS0134P Rahul B");
+	 $display ("2019A7PS0039P Asish Juttu");
+	 $display ("2019A7PS1111P Praneeth Chaitanya Jonnavithula");
+	 $display ("2019A7PS0138P Narasimha Guptha Jangala");
+	 $display ("********************************************");
+	 end
+
+	 initial begin
+	 $display ("A few thigs about our design:");
+	 $display ("********************************************");
+	 $display ("It works on the Positive edge of the CLOCK signal");
+	 $display ("Will take around 25 CLOCK cycles to complete the execution");
+	 $display ("We haven't used the guard bits");
+	 $display ("********************************************");
+	 end
 endmodule
